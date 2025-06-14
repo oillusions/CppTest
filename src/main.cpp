@@ -17,7 +17,7 @@ class BaseAssetLoader {
 template<typename T>
 class AssetLoader : public BaseAssetLoader {
     public:
-        void virtual load(path, function<void(T)>) = 0;
+        void virtual load(path, function<void(shared_ptr<T>)>) = 0;
 };
 
 class AssetManager {
@@ -31,10 +31,14 @@ class AssetManager {
         static void request(const path& asset_path, const function<void(shared_ptr<T>)>& listener) {
             if (loaders.count(typeid(T))) {
                 shared_ptr<AssetLoader<T>> loader = dynamic_pointer_cast<AssetLoader<T>>(loaders[typeid(T)]);
+
+                loader->load(asset_path, listener);
+            } else {
+                cerr << "No Loader" << endl;
             }
         }
     private:
-        static map<type_index, BaseAssetLoader> loaders;
+        static map<type_index, shared_ptr<BaseAssetLoader>> loaders;
 };
 
 class Text {
@@ -47,20 +51,24 @@ class Text {
 
 class TextLoader : public AssetLoader<Text> {
     public:
-        void load(path asset_path, function<void(Text)> listener) override {
+        void load(path asset_path, function<void(shared_ptr<Text>)> listener) override {
             if (exists(asset_path)) {
                 ifstream asset_file(asset_path);
                 if (asset_file.is_open()) {
-                    stringstream stream;
-                    stream << asset_file.rdbuf();
-                    listener(Text(stream.str()));
+                    stringstream buffer;
+                    buffer << asset_file.rdbuf();
+                    listener(make_shared<Text>(buffer.str()));
+                } else {
+                    cerr << "could not open file" << endl;
                 }
+            } else {
+                cerr << "NO File" << endl;
             }
         }
 };
 
 
-map<type_index, BaseAssetLoader> AssetManager::loaders;
+map<type_index, shared_ptr<BaseAssetLoader>> AssetManager::loaders;
 
 int main() {
     AssetManager::registerLoader<Text>(make_shared<TextLoader>());
